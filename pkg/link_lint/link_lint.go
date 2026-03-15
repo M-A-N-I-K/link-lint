@@ -10,8 +10,16 @@ import (
 )
 
 var urls []string
+var total_pages_visited int
+
+const (
+	ColorRed   = "\x1b[31m"
+	ColorGreen = "\x1b[32m"
+	ColorReset = "\x1b[0m"
+)
 
 func ScrapeWebsite(url string) {
+	total_pages_visited = total_pages_visited + 1
 	client := &http.Client{}
 
 	resp, err := client.Get(url)
@@ -28,30 +36,37 @@ func ScrapeWebsite(url string) {
 	}
 
 	doc, err := html.Parse(strings.NewReader(string(body)))
+
 	if err != nil {
 		panic(err)
 	}
-
-	ParseHTML(doc, url)
+	urls = ParseHTML(doc, url)
+	for _, url := range urls {
+		fmt.Println("scrpaing url", url)
+		ScrapeWebsite(url)
+	}
 }
 
 func CheckIfDeadPage(url string, statusCode int) bool {
 	if statusCode > 400 {
 		message := url + " is dead page"
+		fmt.Println(ColorRed + message + ColorReset)
 		urls = append(urls, message)
 		return true
 	}
 	return false
 }
 
-func ParseHTML(n *html.Node, url string) {
+func ParseHTML(n *html.Node, url string) []string {
+	var urls []string
 	if n.Type == html.ElementNode {
 		if n.Data == "a" && n.Attr[0].Key == "href" {
-			fmt.Println("checking", n.Attr[0].Val)
-			ScrapeWebsite(url + n.Attr[0].Val)
+			url = url + n.Attr[0].Val
+			urls = append(urls, url)
 		}
 	}
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		ParseHTML(c, url)
+		urls = append(urls, ParseHTML(c, url)...)
 	}
+	return urls
 }
