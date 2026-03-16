@@ -5,12 +5,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 )
 
 var urls []string
-var total_pages_visited int
+var visitedPages = map[string]struct{}{}
 
 const (
 	ColorRed   = "\x1b[31m"
@@ -19,14 +20,22 @@ const (
 )
 
 func ScrapeWebsite(url string) {
-	total_pages_visited = total_pages_visited + 1
-	client := &http.Client{}
+	if _, ok := visitedPages[url]; ok {
+		fmt.Printf("Page %s already scraped\n", url)
+	}
+	visitedPages[url] = struct{}{}
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
 
 	resp, err := client.Get(url)
 	if err != nil {
-		panic(err)
+		fmt.Println(ColorRed+url, err, ColorReset)
+		return
 	}
-	CheckIfDeadPage(url, resp.StatusCode)
+	if DeadPage(url, resp.StatusCode) {
+		return
+	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
@@ -42,12 +51,16 @@ func ScrapeWebsite(url string) {
 	}
 	urls = ParseHTML(doc, url)
 	for _, url := range urls {
-		fmt.Println("scrpaing url", url)
+		// fmt.Println("scraping url", url)
+		if _, ok := visitedPages[url]; ok {
+			// fmt.Printf("Page %s already scraped\n", url)
+			continue
+		}
 		ScrapeWebsite(url)
 	}
 }
 
-func CheckIfDeadPage(url string, statusCode int) bool {
+func DeadPage(url string, statusCode int) bool {
 	if statusCode > 400 {
 		message := url + " is dead page"
 		fmt.Println(ColorRed + message + ColorReset)
@@ -61,8 +74,16 @@ func ParseHTML(n *html.Node, url string) []string {
 	var urls []string
 	if n.Type == html.ElementNode {
 		if n.Data == "a" && n.Attr[0].Key == "href" {
-			url = url + n.Attr[0].Val
+			// fmt.Print("found : ", n.Attr[0].Val, "\n")
+
+			if strings.HasPrefix(n.Attr[0].Val, "http") {
+				url = n.Attr[0].Val
+			} else {
+				parts := strings.Split(url, "/")
+				url = parts[0] + "//" + parts[2] + n.Attr[0].Val
+			}
 			urls = append(urls, url)
+			return urls
 		}
 	}
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
