@@ -67,6 +67,12 @@ func DeadPage(url string, statusCode int) bool {
 		urls = append(urls, message)
 		return true
 	}
+	if statusCode > 300 && statusCode < 400 {
+		message := url + " is a redirected page"
+		fmt.Println(message)
+		urls = append(urls, message)
+		return true
+	}
 	return false
 }
 
