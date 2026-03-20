@@ -5,13 +5,14 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/html"
 )
 
 var urls []string
-var visitedPages = map[string]struct{}{}
+var visitedPages sync.Map
 
 const (
 	ColorRed   = "\x1b[31m"
@@ -19,11 +20,12 @@ const (
 	ColorReset = "\x1b[0m"
 )
 
-func ScrapeWebsite(url string) {
-	if _, ok := visitedPages[url]; ok {
+func ScrapeWebsite(url string, ch chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	if _, ok := visitedPages.Load(url); ok {
 		fmt.Printf("Page %s already scraped\n", url)
 	}
-	visitedPages[url] = struct{}{}
+	visitedPages.Store("url", true)
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 	}
@@ -33,7 +35,9 @@ func ScrapeWebsite(url string) {
 		fmt.Println(ColorRed+url, err, ColorReset)
 		return
 	}
-	if DeadPage(url, resp.StatusCode) {
+	dead_page, message := DeadPage(url, resp.StatusCode)
+	if dead_page {
+		ch <- message
 		return
 	}
 	defer resp.Body.Close()
@@ -51,29 +55,28 @@ func ScrapeWebsite(url string) {
 	}
 	urls = ParseHTML(doc, url)
 	for _, url := range urls {
-		// fmt.Println("scraping url", url)
-		if _, ok := visitedPages[url]; ok {
-			// fmt.Printf("Page %s already scraped\n", url)
+		wg.Add(1)
+		if _, ok := visitedPages.Load(url); ok {
 			continue
 		}
-		ScrapeWebsite(url)
+		go ScrapeWebsite(url, ch, wg)
 	}
 }
 
-func DeadPage(url string, statusCode int) bool {
+func DeadPage(url string, statusCode int) (bool, string) {
 	if statusCode > 400 {
 		message := url + " is dead page"
 		fmt.Println(ColorRed + message + ColorReset)
 		urls = append(urls, message)
-		return true
+		return true, message
 	}
 	if statusCode > 300 && statusCode < 400 {
 		message := url + " is a redirected page"
 		fmt.Println(message)
 		urls = append(urls, message)
-		return true
+		return true, message
 	}
-	return false
+	return false, ""
 }
 
 func ParseHTML(n *html.Node, url string) []string {
