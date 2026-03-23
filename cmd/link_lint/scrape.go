@@ -29,6 +29,8 @@ var scrapeCmd = &cobra.Command{
 			close(ch)
 		}()
 
+		<-ch
+
 		// for result := range ch {
 		// 	fmt.Println(result)
 		// }
