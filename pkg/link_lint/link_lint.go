@@ -83,14 +83,13 @@ func ParseHTML(n *html.Node, url string) []string {
 	var urls []string
 	if n.Type == html.ElementNode {
 		if n.Data == "a" && n.Attr[0].Key == "href" {
-			// fmt.Print("found : ", n.Attr[0].Val, "\n")
-
 			if strings.HasPrefix(n.Attr[0].Val, "http") {
 				url = n.Attr[0].Val
 			} else {
 				parts := strings.Split(url, "/")
 				url = parts[0] + "//" + parts[2] + n.Attr[0].Val
 			}
+
 			urls = append(urls, url)
 			return urls
 		}
