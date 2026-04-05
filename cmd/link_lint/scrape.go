@@ -31,10 +31,6 @@ var scrapeCmd = &cobra.Command{
 
 		<-ch
 
-		// for result := range ch {
-		// 	fmt.Println(result)
-		// }
-
 		elapsed := time.Since(start)
 		fmt.Printf("Scraping took %s ", elapsed)
 	},
